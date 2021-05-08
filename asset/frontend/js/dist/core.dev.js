@@ -1,0 +1,411 @@
+"use strict";
+
+var base_url = "http://localhost/store/";
+
+var UIController = function () {
+  var DOMString = {
+    'btnAddCart': '.add-to-cart',
+    'txtTotalBelanja': '.cart-price',
+    'txtJumlahBelanja': '.cart-amunt',
+    'sku': '#sku',
+    'dataPemebelian': '#data-pembelian',
+    'dataWishlist': '#data-wishlist',
+    'hapusKeranjangHead': '.hapus-item',
+    'hapusWishlist': '.hapus-item-wishlist',
+    'cartMinus': '.minus',
+    'dataCart': '#data-cart',
+    'txtCartTotal': '#cart-total',
+    'txtJumlahBeli': '.qty',
+    'wishlist': '.wishlist',
+    'txtJumlahWishLish': '#jumlah-wishlist'
+  };
+  return {
+    getDOM: function getDOM() {
+      return DOMString;
+    },
+    tampilTotalBelanja: function tampilTotalBelanja(total) {
+      $(DOMString.txtTotalBelanja).text('Rp. ' + total);
+    },
+    tampilJumlahBarang: function tampilJumlahBarang(jumlah) {
+      $(DOMString.txtJumlahBelanja).text(jumlah);
+    },
+    tampilJumlahBarangWishlist: function tampilJumlahBarangWishlist(jumlah) {
+      $(DOMString.txtJumlahWishLish).text(jumlah);
+    },
+    tampilToast: function tampilToast(tipe, nama) {
+      if (tipe == "insert") {
+        toastr.success(nama + ' berhasil ditambahkan');
+      } else if (tipe == "gagal") {
+        toastr.error('Stok tidak mencukupi');
+      } else if (tipe == "duplicate") {
+        toastr.error('Produk ini telah ada diwishlist');
+      } else if (tipe == "wishlist") {
+        toastr.success(nama + ' berhasil ditambahkan ke Wishlist');
+      }
+    },
+    formatRupiah: function formatRupiah(angka) {
+      return parseFloat(angka).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,').replace(/\,/g, '.').slice(0, -3);
+    },
+    // halaman pemesanan
+    buatTabelPemesanan: function buatTabelPemesanan(data, fnTotal, fnJumlah) {
+      var baris, i, foto, nama, idBarang, urlFoto, harga, id;
+
+      if (data.length == 0) {
+        baris += '<tr>' + '<td colspan="6"><b>Keranjang Masih Kosong</b></td></tr>';
+      } else {
+        for (i = 0; i < data.length; i++) {
+          id = data[i].id;
+          foto = data[i].foto; // nama = this.limitKalimat(data[i].nama,15);
+
+          nama = data[i].nama + ' ' + data[i].sku;
+          idBarang = data[i].id_barang;
+          harga = this.formatRupiah(data[i].total_harga);
+          jumlah = data[i].jumlah;
+          subtotal = this.formatRupiah(data[i].subtotal); // url = base_url+"DetailProduk?id="+idBarang;
+
+          urlFoto = base_url + 'resource/' + foto;
+          baris += '<tr>' + '<td class="cart-pic first-row"> <img src="' + urlFoto + '" style="width:12rem" alt="" ></td>' + '<td class="cart-title first-row"><h5>' + nama + '</h5></td>' + '<td class="p-price first-row">' + harga + '</td>' + '<td class="qua-col first-row"><div class="quantity"><div class="pro-qty"><span class="dec qtybtn" id="min" data-id="' + id + '"' + 'data-harga=' + harga + '>-</span><input type="text" value="' + jumlah + '"><span class="inc qtybtn" id="plush" data-id="' + id + '"' + 'data-harga=' + harga + '>+</span></div></div></td>' + '<td class="total-price first-row">' + subtotal + '</td>' + '<td class="close-td first-row" id="hapus-item-wishlist" data-id="' + id + '"><i class="ti-close"></i></td>' + '</tr>';
+        }
+      }
+
+      $('#data').html(baris);
+      fnTotal;
+      fnJumlah;
+    },
+    // halaman pemesanan
+    buatTabelWishlist: function buatTabelWishlist(data) {
+      var baris, i, foto, nama, idBarang, urlFoto, harga, id;
+
+      if (data.length == 0) {
+        baris += '<tr>' + '<td colspan="4"><b>Wishlist Masih Kosong</b></td></tr>';
+      } else {
+        for (i = 0; i < data.length; i++) {
+          id = data[i].id;
+          foto = data[i].foto; // nama = this.limitKalimat(data[i].nama,15);
+
+          nama = data[i].nama;
+          idBarang = data[i].id_barang;
+          harga = this.formatRupiah(data[i].total_harga);
+          urlFoto = base_url + 'resource/' + foto;
+          baris += '<tr>' + '<td class="cart-pic first-row"> <img src="' + urlFoto + '" style="width:12rem" alt="" ></td>' + '<td class="cart-title first-row"><h5>' + nama + '</h5></td>' + '<td class="p-price first-row">' + harga + '</td>' + '<td class="close-td first-row hapus-item-wishlist" data-id="' + id + '"><i class="ti-close"></i></td>' + '</tr>';
+        }
+      }
+
+      $('#wishlist').html(baris);
+    },
+    tampilTotalBelanjaKeranjang: function tampilTotalBelanjaKeranjang(total) {
+      $(DOMString.txtCartTotal).text(total);
+    },
+    limitKalimat: function limitKalimat(text, limit) {
+      return text.slice(0, limit) + " ...";
+    },
+    bersihKolom: function bersihKolom(dom) {
+      $(dom).val("");
+    }
+  };
+}();
+
+var Controller = function (uiCtr) {
+  var email, dom;
+  email = $('body').attr('data-email');
+
+  var setupEventListener = function setupEventListener() {
+    dom = uiCtr.getDOM();
+
+    if (email != "") {
+      // getNomorFaktur();
+      getJumlahBelanja();
+      getTotalBelanja();
+      getDataBelanja();
+      getJumlahWishList();
+      getDataWishlist();
+    }
+
+    $(dom.btnAddCart).on('click', function () {
+      insertBelanja();
+    });
+    $(dom.wishlist).on('click', function () {
+      var idBrang = $(this).attr('data-id');
+      var nama = $(this).attr('data-nama');
+      insertWishLish(idBrang, nama);
+    });
+    $(dom.dataWishlist).on('click', dom.hapusWishlist, function () {
+      var id = $(this).data('id');
+      hapusItemWishlist(id);
+    });
+    $(dom.dataPemebelian).on('click', dom.hapusKeranjangHead, function () {
+      var id = $(this).data('id');
+      hapusItemKeranjang(id);
+    });
+    $('#data').on('click', '#hapus-item-wishlist', function () {
+      var id = $(this).data('id');
+      hapusItemKeranjang(id);
+    });
+    $('#data').on('click', '#plush', function () {
+      var id = $(this).attr('data-id');
+      var harga = $(this).attr('data-harga').replace(/\./g, '');
+      var status = "tambah";
+      plusMinKeranjang(id, status, harga);
+    });
+    $('#data').on('click', '#min', function () {
+      var id = $(this).attr('data-id');
+      var harga = $(this).attr('data-harga').replace(/\./g, '');
+      var status = "kurang";
+      plusMinKeranjang(id, status, harga);
+    });
+    $('#data').on('click', '#hapus', function () {
+      var id = $(this).attr('data-id');
+      hapusItemKeranjang(id);
+    }); // wishlist
+
+    $('#wishlist').on('click', dom.hapusWishlist, function () {
+      var id = $(this).attr('data-id');
+      hapusItemWishlist(id);
+    });
+
+    function insertWishLish(idBarang, nama) {
+      $.ajax({
+        type: 'POST',
+        url: base_url + 'Wishlist/addWishlist',
+        data: {
+          idBarang: idBarang
+        },
+        success: function success(data) {
+          if (data == "Gagal") {
+            window.location.href = base_url + "Login";
+          } else if (data == "Sudah ada") {
+            uiCtr.tampilToast('duplicate', '');
+          } else if (data == "Berhasil") {
+            uiCtr.tampilToast('wishlist', nama);
+            getJumlahWishList();
+            getDataWishlist();
+          }
+        }
+      });
+    }
+
+    function getJumlahWishList() {
+      $.ajax({
+        type: 'POST',
+        url: base_url + 'Wishlist/getJumlahBarang',
+        success: function success(data) {
+          uiCtr.tampilJumlahBarangWishlist(data);
+        }
+      });
+    }
+
+    function getDataWishlist() {
+      $.ajax({
+        type: 'POST',
+        url: base_url + 'Wishlist/getWishlist',
+        async: false,
+        dataType: 'json',
+        success: function success(data) {
+          var html = "";
+          var i;
+
+          for (i = 0; i < data.length; i++) {
+            html += '<tr>' + '<td class="si-pic"><img src="' + base_url + 'resource/' + data[i].foto + '" alt="" style="width:7rem;height:7rem;"></td>' + '<td class="si-text"> <div class="product-selected"> <p>' + uiCtr.formatRupiah(data[i].total_harga) + '<h6>' + data[i].nama + '</p></h6> </div>' + '</td>' + '<td class="si-close"><i class="ti-close hapus-item-wishlist" data-id=' + data[i].id + '></i></td>' + '</tr>';
+          }
+
+          $(dom.dataWishlist).html(html);
+        }
+      });
+    }
+
+    function hapusItemWishlist(id) {
+      $.ajax({
+        type: 'POST',
+        data: {
+          id: id
+        },
+        url: base_url + 'Wishlist/hapusItemWishlist',
+        success: function success(data) {
+          getJumlahWishList();
+          getDataWishlist();
+
+          if (location.pathname.substring(1) == "store/Wishlist") {
+            getAllWishlist();
+          }
+        }
+      });
+    } // end wishlist
+
+
+    function plusMinKeranjang(id, status, harga) {
+      $.ajax({
+        url: base_url + 'Cart/plusminBelanja',
+        data: {
+          id: id,
+          status: status,
+          harga: harga
+        },
+        type: 'post',
+        success: function success(data) {
+          if (data == "gagal") {
+            uiCtr.tampilToast('gagal', '');
+          } else {
+            getAllPemesanan();
+          }
+        }
+      });
+    }
+
+    function insertBelanja() {
+      var sku = $(dom.sku).val();
+      var jumlahBeli = $(dom.txtJumlahBeli).val();
+
+      if (email) {
+        $.ajax({
+          type: 'POST',
+          data: {
+            sku: sku,
+            jumlahBeli: jumlahBeli
+          },
+          url: base_url + "Pemesanan/addDataPemesanan",
+          dataType: "JSON",
+          success: function success(data) {
+            if (data.pesan == "Berhasil") {
+              getJumlahBelanja();
+              getTotalBelanja();
+              getDataBelanja();
+              uiCtr.tampilToast('insert', data.nama);
+              var stokTeksJs = $('#stok').text();
+              var stokTeks = stokTeksJs.split(" ");
+              var jumbaru = stokTeks[0] - jumlahBeli;
+
+              if (jumbaru == 0) {
+                $('#stok').text('Stok Habis');
+              } else {
+                $('#stok').text(jumbaru + ' Tersisa');
+              }
+            } else if (data.pesan == "Gagal") {
+              uiCtr.tampilToast('gagal', '');
+            }
+          }
+        });
+      } else {
+        window.location.href = base_url + "Login";
+      }
+    }
+
+    function hapusItemKeranjang(id) {
+      $.ajax({
+        type: 'POST',
+        data: {
+          id: id
+        },
+        url: base_url + 'Pemesanan/hapusItemKeranjang',
+        success: function success(data) {
+          getJumlahBelanja();
+          getTotalBelanja();
+          getDataBelanja();
+
+          if (location.pathname.substring(1) == "store/Cart") {
+            getAllPemesanan();
+          }
+        }
+      });
+    }
+
+    function getTotalBelanja() {
+      $.ajax({
+        type: 'POST',
+        url: base_url + 'Pemesanan/getTotal',
+        success: function success(data) {
+          uiCtr.tampilTotalBelanja(data);
+
+          if (location.pathname.substring(1) == "mystore/Cart") {
+            uiCtr.tampilTotalBelanjaKeranjang(data);
+          }
+        }
+      });
+    }
+
+    function getJumlahBelanja() {
+      $.ajax({
+        type: 'POST',
+        url: base_url + 'Pemesanan/getJumlahBarang',
+        success: function success(data) {
+          uiCtr.tampilJumlahBarang(data);
+        }
+      });
+    }
+
+    function getDataBelanja() {
+      $.ajax({
+        type: 'POST',
+        url: base_url + 'Pemesanan/getDataBelanja',
+        async: false,
+        dataType: 'json',
+        success: function success(data) {
+          var html = "";
+          var i;
+
+          for (i = 0; i < data.length; i++) {
+            html += '<tr>' + '<td class="si-pic"><img src="' + base_url + 'resource/' + data[i].foto + '" alt="" style="width:7rem;height:7rem;"></td>' + '<td class="si-text"> <div class="product-selected"> <p>' + uiCtr.formatRupiah(data[i].total_harga) + ' x ' + data[i].jumlah + '</p><h6>' + data[i].nama + '</h6> </div>' + '</td>' + '<td class="si-close"><i class="ti-close hapus-item" data-id=' + data[i].id + '></i></td>' + '</tr>';
+          }
+
+          $(dom.dataPemebelian).html(html);
+        }
+      });
+    }
+
+    function hapusItemKeranjang(id) {
+      $.ajax({
+        type: 'POST',
+        data: {
+          id: id
+        },
+        url: base_url + 'Pemesanan/hapusItemKeranjang',
+        success: function success(data) {
+          getJumlahBelanja();
+          getTotalBelanja();
+          getDataBelanja();
+
+          if (location.pathname.substring(1) == "store/Cart") {
+            getAllPemesanan();
+          }
+        }
+      });
+    }
+
+    if (location.pathname.substring(1) == "store/Cart") {
+      getAllPemesanan();
+    }
+
+    if (location.pathname.substring(1) == "store/Wishlist") {
+      getAllWishlist();
+    }
+
+    function getAllPemesanan() {
+      $.ajax({
+        type: "post",
+        url: base_url + 'Cart/getAll',
+        dataType: 'JSON',
+        success: function success(data) {
+          uiCtr.buatTabelPemesanan(data, getTotalBelanja(), getJumlahBelanja());
+        }
+      });
+    }
+
+    function getAllWishlist() {
+      $.ajax({
+        type: "post",
+        url: base_url + 'Wishlist/getAll',
+        dataType: 'JSON',
+        success: function success(data) {
+          uiCtr.buatTabelWishlist(data);
+        }
+      });
+    }
+  };
+
+  return {
+    init: function init() {
+      setupEventListener();
+    }
+  };
+}(UIController);
+
+Controller.init();
